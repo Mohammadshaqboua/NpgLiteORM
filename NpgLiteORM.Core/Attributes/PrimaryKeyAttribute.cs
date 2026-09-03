@@ -1,6 +1,9 @@
+using System;
+
 namespace NpgLiteORM.Core.Attributes;
 
-public class PrimaryKeyAttribute
+[AttributeUsage(AttributeTargets.Property)]
+public class PrimaryKeyAttribute : Attribute
 {
     
 }

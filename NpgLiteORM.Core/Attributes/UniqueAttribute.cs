@@ -1,6 +1,9 @@
+using System;
+
 namespace NpgLiteORM.Core.Attributes;
 
-public class UniqueAttribute
+[AttributeUsage(AttributeTargets.Property)]
+public class UniqueAttribute : Attribute
 {
     
 }

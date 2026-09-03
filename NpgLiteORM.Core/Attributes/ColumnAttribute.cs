@@ -1,6 +1,10 @@
+using System;
+
 namespace NpgLiteORM.Core.Attributes;
 
-public class ColumnAttribute
+[AttributeUsage(AttributeTargets.Property)]
+public class ColumnAttribute : Attribute
 {
-    
+    public string Name { get; }
+    public ColumnAttribute(string name) => Name = name;
 }

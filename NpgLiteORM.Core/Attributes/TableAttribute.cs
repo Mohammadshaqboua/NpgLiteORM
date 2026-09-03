@@ -1,6 +1,10 @@
+using System;
+
 namespace NpgLiteORM.Core.Attributes;
 
-public class TableAttribute
+[AttributeUsage(AttributeTargets.Class)]
+public class TableAttribute : Attribute
 {
-    
+    public string Name { get; }
+    public TableAttribute(string name) => Name = name;
 }

@@ -1,6 +1,9 @@
+using System;
+
 namespace NpgLiteORM.Core.Attributes;
 
-public class NotNullAttribute
+[AttributeUsage(AttributeTargets.Property)]
+public class NotNullAttribute : Attribute
 {
     
 }

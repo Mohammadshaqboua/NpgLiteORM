@@ -1,6 +1,9 @@
+using System;
+
 namespace NpgLiteORM.Core.Attributes;
 
-public class AutoIncrementAttribute
+[AttributeUsage(AttributeTargets.Property)]
+public class AutoIncrementAttribute : Attribute
 {
     
 }
