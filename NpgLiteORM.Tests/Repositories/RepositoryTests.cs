@@ -20,9 +20,20 @@ public class RepositoryTests : IAsyncLifetime
 
         var connection = _connectionFactory.CreateConnection();
         connection.Open();
+
+        var schemaBuilder = new NpgLiteORM.Core.Mapping.SchemaBuilder();
+        var createTableSql = schemaBuilder.BuildCreateTableSql<User>();
+
+        using (var createCommand = connection.CreateCommand())
+        {
+            createCommand.CommandText = createTableSql;
+            createCommand.ExecuteNonQuery();
+        }
+
         using var command = connection.CreateCommand();
         command.CommandText = "TRUNCATE TABLE users RESTART IDENTITY CASCADE";
         command.ExecuteNonQuery();
+
         connection.Close();
 
         await Task.CompletedTask;
