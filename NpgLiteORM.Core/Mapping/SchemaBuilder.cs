@@ -1,5 +1,6 @@
 using System.Reflection;
 using NpgLiteORM.Core.Attributes;
+using NpgLiteORM.Core.Exceptions;
 
 namespace NpgLiteORM.Core.Mapping;
 
@@ -104,6 +105,9 @@ public class SchemaBuilder
         if (underlyingType == typeof(Guid))
             return "UUID";
 
-        throw new NotSupportedException($"Type {underlyingType.Name} not supported");
+        throw new SchemaValidationException(
+            property.DeclaringType!,
+            property.Name,
+            $"Type {underlyingType.Name} is not supported for property {property.Name}");
     }
 }
