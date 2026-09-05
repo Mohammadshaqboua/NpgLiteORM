@@ -1,16 +1,23 @@
-﻿using Npgsql;
+﻿using System.Data.Common;
+using NpgLiteORM.Core.Data;
+using NpgLiteORM.Core.Migrations;
+using NpgLiteORM.Core.Migrations.Migrations;
+using NpgLiteORM.Demo.Migrations;
 
 string connectionString = "Host=localhost;Port=5433;Database=npglite_db;Username=postgres;Password=postgres123";
+var connectionFactory = new PostgresConnectionFactory(connectionString);
 
-await using var connection = new NpgsqlConnection(connectionString);
+var connection = connectionFactory.CreateConnection();
+if (connection is DbConnection dbConnection)
+{
+    await dbConnection.OpenAsync();
 
-Console.WriteLine("Attempting to connect to the database...");
+    var migrationRunner = new MigrationRunner(dbConnection);
+    var migrations = new List<IMigration>
+    {
+        new CreateUsersTable(),
+        new CreateOrdersTable()
+    };
 
-await connection.OpenAsync();
-
-Console.WriteLine("Connection successful! ✅");
-
-await using var command = new NpgsqlCommand("SELECT version();", connection);
-var result = await command.ExecuteScalarAsync();
-
-Console.WriteLine($"copy PostgreSQL: {result}");
+    await migrationRunner.RunAsync(migrations);
+}

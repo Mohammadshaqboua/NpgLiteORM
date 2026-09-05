@@ -11,15 +11,12 @@ public class SchemaBuilder
         var tableAttribute = type.GetCustomAttribute<TableAttribute>();
         var properties = type.GetProperties();
         var columnDefinitions = new List<string>();
-
         foreach (var property in properties)
         {
             var columnDef = BuildColumnDefinition(property);
             columnDefinitions.Add(columnDef);
         }
-
         string columns = string.Join(", ", columnDefinitions);
-
         string tableName;
         if (tableAttribute == null)
         {
@@ -29,10 +26,9 @@ public class SchemaBuilder
         {
             tableName = tableAttribute.Name;
         }
-
         return $"CREATE TABLE IF NOT EXISTS {tableName} ({columns});";
     }
-    
+
     public string GetTableName<T>()
     {
         var type = typeof(T);
@@ -40,12 +36,16 @@ public class SchemaBuilder
         return tableAttribute == null ? type.Name : tableAttribute.Name;
     }
 
+    private string GetTableNameForType(Type type)
+    {
+        var tableAttribute = type.GetCustomAttribute<TableAttribute>();
+        return tableAttribute == null ? type.Name : tableAttribute.Name;
+    }
+
     private string BuildColumnDefinition(PropertyInfo property)
     {
         string columnName = AttributeHelper.GetColumnName(property);
-
         string sqlType = MapCSharpTypeToSql(property);
-
         string constraints = "";
         if (property.IsDefined(typeof(PrimaryKeyAttribute)))
         {
@@ -60,6 +60,13 @@ public class SchemaBuilder
             constraints += " UNIQUE";
         }
 
+        var foreignKeyAttribute = property.GetCustomAttribute<ForeignKeyAttribute>();
+        if (foreignKeyAttribute != null)
+        {
+            var referencedTableName = GetTableNameForType(foreignKeyAttribute.ReferencedType);
+            constraints += $" REFERENCES {referencedTableName}({foreignKeyAttribute.ReferencedColumn})";
+        }
+
         var maxLengthAttribute = property.GetCustomAttribute<MaxLengthAttribute>();
         if (sqlType == "VARCHAR")
         {
@@ -72,7 +79,6 @@ public class SchemaBuilder
                 sqlType = "VARCHAR(255)";
             }
         }
-
         return $"{columnName} {sqlType}{constraints}".TrimEnd();
     }
 
