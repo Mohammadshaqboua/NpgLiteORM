@@ -50,15 +50,6 @@ public class User : EntityBase
 
 ---
 
-## Tech Stack
-
-- **.NET 10**
-- **C#**
-- **PostgreSQL** (via [Npgsql](https://www.npgsql.org/))
-- **Docker** (for local PostgreSQL setup)
-
----
-
 ## 1. Executive Summary
 
 **NpgLiteORM** is a hand-rolled micro-ORM that lets developers map plain C# classes to PostgreSQL tables using attributes (`[Table]`, `[Column]`, `[PrimaryKey]`, `[ForeignKey]`, etc.) and interact with the database through strongly-typed repositories and a fluent, LINQ-style query builder — instead of writing raw SQL by hand.
