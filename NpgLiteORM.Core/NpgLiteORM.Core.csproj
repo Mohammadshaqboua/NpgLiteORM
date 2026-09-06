@@ -1,13 +1,70 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+    <!-- ==================== Build Settings ==================== -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- Don't fail the build over missing XML doc comments; still emit the .xml file for IntelliSense -->
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+
+    <!-- ==================== NuGet Package Metadata ==================== -->
+    <PropertyGroup>
+        <PackageId>NpgLiteORM.Core</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>Mohammad Shaqboua</Authors>
+        <Company>Mohammad Shaqboua</Company>
+        <Product>NpgLiteORM</Product>
+
+        <Description>
+            A lightweight, educational Object-Relational Mapper (ORM) for PostgreSQL built on top of Npgsql.
+            Map plain C# classes to PostgreSQL tables using attributes, and interact with your database through
+            strongly-typed repositories, a Unit of Work, and a fluent LINQ-style query builder — instead of writing
+            raw SQL by hand. Note: this is an early, actively developed release (see Known Limitations in the README).
+        </Description>
+        <PackageTags>orm;postgresql;postgres;npgsql;database;sql;repository-pattern;unit-of-work;query-builder;dotnet</PackageTags>
+
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/Mohammadshaqboua/NpgLiteORM</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/Mohammadshaqboua/NpgLiteORM</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <!-- Add an icon.png (128x128 recommended) next to this .csproj, uncomment the line below,
+             and un-comment the matching <None Include="icon.png" .../> line further down. -->
+        <!-- <PackageIcon>icon.png</PackageIcon> -->
+        <PackageReleaseNotes>Initial preview release: attribute-driven mapping, SchemaBuilder, Repository/UnitOfWork, migrations, and a fluent QueryBuilder whose ExpressionTranslator supports comparisons, &amp;&amp;/||/!, closures over local variables, and Contains/StartsWith/EndsWith (as LIKE). Builds warning-clean under nullable reference types. See README "Known Limitations" for current scope.</PackageReleaseNotes>
+
+        <Copyright>Copyright (c) $([System.DateTime]::Now.Year) Mohammad Shaqboua</Copyright>
+
+        <!-- Helps consumers/tools flag this as pre-1.0 / evolving API -->
+        <PackageValidationBaselineVersion Condition="'$(Version)' != '0.1.0'">0.1.0</PackageValidationBaselineVersion>
+    </PropertyGroup>
+
+    <!-- ==================== Symbols / Source Debugging ==================== -->
+    <PropertyGroup>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <!-- Requires Microsoft.SourceLink.GitHub package reference below -->
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Npgsql" Version="10.0.3" />
+        <PackageReference Include="Npgsql" Version="10.0.3" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+
+    <!-- ==================== Files included in the .nupkg ==================== -->
+    <ItemGroup>
+        <None Include="..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\LICENSE" Pack="true" PackagePath="\" />
+        <!-- Add an icon.png (recommended 128x128) next to this csproj, then uncomment: -->
+        <!-- <None Include="icon.png" Pack="true" PackagePath="\" /> -->
     </ItemGroup>
 
 </Project>

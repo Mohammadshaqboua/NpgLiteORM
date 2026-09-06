@@ -135,7 +135,7 @@ The layering is a clean **onion / clean-architecture shape**: `Attributes` and `
    - **`SchemaBuilder.GetTableName<T>()`** to resolve the physical table name.
    - Parameterized ADO.NET commands (`DbParameter`) everywhere — meaning **the library is SQL-injection-safe by construction** for all repository operations.
 6. **`QueryBuilder<T>`** (implements `IQueryBuilder<T>`) offers a fluent LINQ-like API — `Where(x => x.Age > 18).OrderByDescending(x => x.CreatedAt).Take(10).ExecuteAsync()`. Internally:
-   - **`ExpressionTranslator<T>`** walks the `Expression<Func<T,bool>>` tree, extracts the member/operator/constant, and turns it into a parameterized `WHERE` fragment (`age > @p0`).
+   - **`ExpressionTranslator<T>`** walks the `Expression<Func<T,bool>>` tree and turns it into a parameterized `WHERE` fragment. It handles simple comparisons (`age > @p0`), compound predicates joined with `&&` / `||` / `!` (`(age > @p0 AND name = @p0_1)`), values captured from local variables/closures (`x.Age > minAge`), and `Contains`/`StartsWith`/`EndsWith` translated to `LIKE`.
    - **`SqlGenerator`** assembles the final `SELECT` statement (`WHERE`, `ORDER BY`, `LIMIT`, `OFFSET`) from those fragments — a clean separation between *"what to filter"* (translation) and *"how to write SQL"* (generation).
 7. **`UnitOfWork`** (implements `IUnitOfWork`) opens one shared `DbConnection`, lazily creates/caches a `Repository<T>` per entity type via reflection (`Repository<>.MakeGenericType`), and coordinates `BeginTransaction` / `Commit` / `Rollback` across all of them — the classic Unit-of-Work pattern used by EF Core's `DbContext.SaveChanges()`.
 8. **Domain-specific exceptions** (`EntityNotFoundException`, `ConnectionException`, `SchemaValidationException`) replace generic exceptions with typed, information-rich failures (e.g. `EntityNotFoundException` carries the entity `Type` and the missing `Id`; `SchemaValidationException` carries the entity `Type` and the offending property name).
@@ -147,179 +147,179 @@ The layering is a clean **onion / clean-architecture shape**: `Attributes` and `
 
 ```mermaid
 classDiagram
-    direction TB
+   direction TB
 
-    class EntityBase {
-        <<abstract>>
-        +int Id
-        +DateTime CreatedAt
-        +DateTime UpdatedAt
-    }
+   class EntityBase {
+      <<abstract>>
+      +int Id
+      +DateTime CreatedAt
+      +DateTime UpdatedAt
+   }
 
-    class DbConnectionBase {
-        <<abstract>>
-        #string connectionString
-        +CreateConnection() IDbConnection*
-    }
+   class DbConnectionBase {
+      <<abstract>>
+      #string connectionString
+      +CreateConnection() IDbConnection*
+   }
 
-    class RepositoryBase~T~ {
-        <<abstract>>
-        #IDbConnectionFactory connectionFactory
-        +Validate(T entity) bool
-    }
+   class RepositoryBase~T~ {
+      <<abstract>>
+      #IDbConnectionFactory connectionFactory
+      +Validate(T entity) bool
+   }
 
-    class IDbConnectionFactory {
-        <<interface>>
-        +CreateConnection() IDbConnection
-    }
+   class IDbConnectionFactory {
+      <<interface>>
+      +CreateConnection() IDbConnection
+   }
 
-    class IRepository~T~ {
-        <<interface>>
-        +GetByIdAsync(int id) Task~T~
-        +GetAllAsync() Task~IEnumerable~T~~
-        +AddAsync(T entity) Task
-        +UpdateAsync(T entity) Task
-        +DeleteAsync(int id) Task
-    }
+   class IRepository~T~ {
+      <<interface>>
+      +GetByIdAsync(int id) Task~T~
+      +GetAllAsync() Task~IEnumerable~T~~
+      +AddAsync(T entity) Task
+      +UpdateAsync(T entity) Task
+      +DeleteAsync(int id) Task
+   }
 
-    class IQueryBuilder~T~ {
-        <<interface>>
-        +Where(predicate) IQueryBuilder~T~
-        +OrderBy(keySelector) IQueryBuilder~T~
-        +OrderByDescending(keySelector) IQueryBuilder~T~
-        +Take(count) IQueryBuilder~T~
-        +Skip(count) IQueryBuilder~T~
-        +ExecuteAsync() Task~IEnumerable~T~~
-    }
+   class IQueryBuilder~T~ {
+      <<interface>>
+      +Where(predicate) IQueryBuilder~T~
+      +OrderBy(keySelector) IQueryBuilder~T~
+      +OrderByDescending(keySelector) IQueryBuilder~T~
+      +Take(count) IQueryBuilder~T~
+      +Skip(count) IQueryBuilder~T~
+      +ExecuteAsync() Task~IEnumerable~T~~
+   }
 
-    class IUnitOfWork {
-        <<interface>>
-        +Repository~T~() IRepository~T~
-        +Transaction() Task
-        +SaveChangesAsync() Task
-    }
+   class IUnitOfWork {
+      <<interface>>
+      +Repository~T~() IRepository~T~
+      +Transaction() Task
+      +SaveChangesAsync() Task
+   }
 
-    class PostgresConnectionFactory {
-        +CreateConnection() IDbConnection
-    }
+   class PostgresConnectionFactory {
+      +CreateConnection() IDbConnection
+   }
 
-    class Repository~T~ {
-        -SchemaBuilder SchemaBuilder
-        -EntityMapper~T~ Mapper
-        -DbConnection sharedConnection
-        +AddAsync(T entity) Task
-        +GetAllAsync() Task~IEnumerable~T~~
-        +GetByIdAsync(int id) Task~T~
-        +UpdateAsync(T entity) Task
-        +DeleteAsync(int id) Task
-    }
+   class Repository~T~ {
+      -SchemaBuilder SchemaBuilder
+      -EntityMapper~T~ Mapper
+      -DbConnection sharedConnection
+      +AddAsync(T entity) Task
+      +GetAllAsync() Task~IEnumerable~T~~
+      +GetByIdAsync(int id) Task~T~
+      +UpdateAsync(T entity) Task
+      +DeleteAsync(int id) Task
+   }
 
-    class QueryBuilder~T~ {
-        -IDbConnectionFactory _connectionFactory
-        -List~Expression~ _whereConditions
-        -SchemaBuilder _schemaBuilder
-        -EntityMapper~T~ _mapper
-        -ExpressionTranslator~T~ _translator
-        -SqlGenerator _sqlGenerator
-        +Where(predicate) IQueryBuilder~T~
-        +OrderBy(expr) IQueryBuilder~T~
-        +OrderByDescending(expr) IQueryBuilder~T~
-        +Take(count) IQueryBuilder~T~
-        +Skip(count) IQueryBuilder~T~
-        +ExecuteAsync() Task~IEnumerable~T~~
-    }
+   class QueryBuilder~T~ {
+      -IDbConnectionFactory _connectionFactory
+      -List~Expression~ _whereConditions
+      -SchemaBuilder _schemaBuilder
+      -EntityMapper~T~ _mapper
+      -ExpressionTranslator~T~ _translator
+      -SqlGenerator _sqlGenerator
+      +Where(predicate) IQueryBuilder~T~
+      +OrderBy(expr) IQueryBuilder~T~
+      +OrderByDescending(expr) IQueryBuilder~T~
+      +Take(count) IQueryBuilder~T~
+      +Skip(count) IQueryBuilder~T~
+      +ExecuteAsync() Task~IEnumerable~T~~
+   }
 
-    class UnitOfWork {
-        -IDbConnectionFactory _connectionFactory
-        -DbConnection _connection
-        -DbTransaction _transaction
-        -Dictionary~Type,object~ _repositories
-        +InitializeAsync() Task
-        +Repository~T~() IRepository~T~
-        +Transaction() Task
-        +SaveChangesAsync() Task
-        +RollbackAsync() Task
-    }
+   class UnitOfWork {
+      -IDbConnectionFactory _connectionFactory
+      -DbConnection _connection
+      -DbTransaction _transaction
+      -Dictionary~Type,object~ _repositories
+      +InitializeAsync() Task
+      +Repository~T~() IRepository~T~
+      +Transaction() Task
+      +SaveChangesAsync() Task
+      +RollbackAsync() Task
+   }
 
-    class EntityMapper~T~ {
-        +MapToRow(T entity) Dictionary~string,object~
-        +MapToEntity(IDataRecord row) T
-    }
+   class EntityMapper~T~ {
+      +MapToRow(T entity) Dictionary~string,object~
+      +MapToEntity(IDataRecord row) T
+   }
 
-    class SchemaBuilder {
-        +BuildCreateTableSql~T~() string
-        +GetTableName~T~() string
-        -BuildColumnDefinition(property) string
-        -MapCSharpTypeToSql(property) string
-    }
+   class SchemaBuilder {
+      +BuildCreateTableSql~T~() string
+      +GetTableName~T~() string
+      -BuildColumnDefinition(property) string
+      -MapCSharpTypeToSql(property) string
+   }
 
-    class ExpressionTranslator~T~ {
-        +GetSqlOperator(nodeType) string
-        +TranslateExpression(expr, paramName) (string, object)
-    }
+   class ExpressionTranslator~T~ {
+      +GetSqlOperator(nodeType) string
+      +TranslateExpression(expr, paramName) (string, object)
+   }
 
-    class SqlGenerator {
-        +BuildSelectQuery(table, where, orderBy, dir, take, skip) string
-    }
+   class SqlGenerator {
+      +BuildSelectQuery(table, where, orderBy, dir, take, skip) string
+   }
 
-    class AttributeHelper {
-        <<static>>
-        +GetColumnName(property) string
-    }
+   class AttributeHelper {
+      <<static>>
+      +GetColumnName(property) string
+   }
 
-    class IMigration {
-        <<interface>>
-        +Version int
-        +Name string
-        +UpAsync(connection) Task
-        +DownAsync(connection) Task
-    }
+   class IMigration {
+      <<interface>>
+      +Version int
+      +Name string
+      +UpAsync(connection) Task
+      +DownAsync(connection) Task
+   }
 
-    class MigrationRunner {
-        -DbConnection _connection
-        +RunAsync(migrations) Task
-    }
+   class MigrationRunner {
+      -DbConnection _connection
+      +RunAsync(migrations) Task
+   }
 
-    %% Inheritance
-    DbConnectionBase ..|> IDbConnectionFactory
-    PostgresConnectionFactory --|> DbConnectionBase
-    RepositoryBase~T~ ..|> IRepository~T~ : (contract fulfilled by Repository~T~)
-    Repository~T~ --|> RepositoryBase~T~
-    Repository~T~ ..|> IRepository~T~
-    QueryBuilder~T~ ..|> IQueryBuilder~T~
-    UnitOfWork ..|> IUnitOfWork
+%% Inheritance
+   DbConnectionBase ..|> IDbConnectionFactory
+   PostgresConnectionFactory --|> DbConnectionBase
+   RepositoryBase~T~ ..|> IRepository~T~ : (contract fulfilled by Repository~T~)
+   Repository~T~ --|> RepositoryBase~T~
+   Repository~T~ ..|> IRepository~T~
+   QueryBuilder~T~ ..|> IQueryBuilder~T~
+   UnitOfWork ..|> IUnitOfWork
 
-    %% Composition / usage
-    RepositoryBase~T~ o-- IDbConnectionFactory : uses
-    Repository~T~ *-- SchemaBuilder
-    Repository~T~ *-- EntityMapper~T~
-    QueryBuilder~T~ *-- SchemaBuilder
-    QueryBuilder~T~ *-- EntityMapper~T~
-    QueryBuilder~T~ *-- ExpressionTranslator~T~
-    QueryBuilder~T~ *-- SqlGenerator
-    QueryBuilder~T~ o-- IDbConnectionFactory : uses
-    UnitOfWork o-- IDbConnectionFactory : uses
-    UnitOfWork ..> Repository~T~ : creates via reflection
-    EntityMapper~T~ ..> AttributeHelper : uses
-    SchemaBuilder ..> AttributeHelper : uses
-    ExpressionTranslator~T~ ..> AttributeHelper : uses
-    MigrationRunner o-- IMigration : runs
-    IMigration ..> SchemaBuilder : uses (in Demo migrations)
+%% Composition / usage
+   RepositoryBase~T~ o-- IDbConnectionFactory : uses
+   Repository~T~ *-- SchemaBuilder
+   Repository~T~ *-- EntityMapper~T~
+   QueryBuilder~T~ *-- SchemaBuilder
+   QueryBuilder~T~ *-- EntityMapper~T~
+   QueryBuilder~T~ *-- ExpressionTranslator~T~
+   QueryBuilder~T~ *-- SqlGenerator
+   QueryBuilder~T~ o-- IDbConnectionFactory : uses
+   UnitOfWork o-- IDbConnectionFactory : uses
+   UnitOfWork ..> Repository~T~ : creates via reflection
+   EntityMapper~T~ ..> AttributeHelper : uses
+   SchemaBuilder ..> AttributeHelper : uses
+   ExpressionTranslator~T~ ..> AttributeHelper : uses
+   MigrationRunner o-- IMigration : runs
+   IMigration ..> SchemaBuilder : uses (in Demo migrations)
 
-    %% Entities
-    Repository~T~ ..> EntityBase : constrained to
-    QueryBuilder~T~ ..> EntityBase : constrained to
-    EntityBase <|-- User
-    EntityBase <|-- Order
+%% Entities
+   Repository~T~ ..> EntityBase : constrained to
+   QueryBuilder~T~ ..> EntityBase : constrained to
+   EntityBase <|-- User
+   EntityBase <|-- Order
 
-    class User {
-        +string Name
-        +string Email
-    }
-    class Order {
-        +int UserId
-        +decimal Total
-    }
+   class User {
+      +string Name
+      +string Email
+   }
+   class Order {
+      +int UserId
+      +decimal Total
+   }
 ```
 
 ---
@@ -328,71 +328,71 @@ classDiagram
 
 ```mermaid
 classDiagram
-    direction LR
+   direction LR
 
-    class Attribute {
-        <<.NET base>>
-    }
+   class Attribute {
+<<.NET base>>
+}
 
-    class TableAttribute {
-        +string Name
-    }
-    class ColumnAttribute {
-        +string Name
-    }
-    class PrimaryKeyAttribute
-    class AutoIncrementAttribute
-    class NotNullAttribute
-    class UniqueAttribute
-    class MaxLengthAttribute {
-        +int Length
-    }
-    class ForeignKeyAttribute {
-        +Type ReferencedType
-        +string ReferencedColumn
-    }
+class TableAttribute {
++string Name
+}
+class ColumnAttribute {
++string Name
+}
+class PrimaryKeyAttribute
+class AutoIncrementAttribute
+class NotNullAttribute
+class UniqueAttribute
+class MaxLengthAttribute {
++int Length
+}
+class ForeignKeyAttribute {
++Type ReferencedType
++string ReferencedColumn
+}
 
-    Attribute <|-- TableAttribute
-    Attribute <|-- ColumnAttribute
-    Attribute <|-- PrimaryKeyAttribute
-    Attribute <|-- AutoIncrementAttribute
-    Attribute <|-- NotNullAttribute
-    Attribute <|-- UniqueAttribute
-    Attribute <|-- MaxLengthAttribute
-    Attribute <|-- ForeignKeyAttribute
+Attribute <|-- TableAttribute
+Attribute <|-- ColumnAttribute
+Attribute <|-- PrimaryKeyAttribute
+Attribute <|-- AutoIncrementAttribute
+Attribute <|-- NotNullAttribute
+Attribute <|-- UniqueAttribute
+Attribute <|-- MaxLengthAttribute
+Attribute <|-- ForeignKeyAttribute
 
-    class Exception {
-        <<.NET base>>
-    }
-    class ConnectionException {
-        +string DatabaseName
-        +string Host
-    }
-    class EntityNotFoundException {
-        +Type EntityType
-        +object EntityId
-    }
-    class SchemaValidationException {
-        +Type EntityType
-        +string PropertyName
-    }
+class Exception {
+<<.NET base>>
+}
+class ConnectionException {
++string DatabaseName
++string Host
+}
+class EntityNotFoundException {
++Type EntityType
++object EntityId
+}
+class SchemaValidationException {
++Type EntityType
++string PropertyName
+}
 
-    Exception <|-- ConnectionException
-    Exception <|-- EntityNotFoundException
-    Exception <|-- SchemaValidationException
+Exception <|-- ConnectionException
+Exception <|-- EntityNotFoundException
+Exception <|-- SchemaValidationException
 
-    class SortDirection {
-        <<enumeration>>
-        Ascending
-        Descending
-    }
-    class JoinType {
-        <<enumeration>>
-        Inner
-        Left
-        Right
-        Full
-    }
+class SortDirection {
+<<enumeration>>
+Ascending
+Descending
+}
+class JoinType {
+<<enumeration>>
+Inner
+Left
+Right
+Full
+}
 ```
 
 ---
@@ -403,25 +403,25 @@ Shows how attribute-driven reflection, the connection factory, and parameterized
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Repo as Repository<T>
-    participant Mapper as EntityMapper<T>
-    participant Schema as SchemaBuilder
-    participant Factory as IDbConnectionFactory
-    participant DB as PostgreSQL
+   participant Client
+   participant Repo as Repository<T>
+   participant Mapper as EntityMapper<T>
+   participant Schema as SchemaBuilder
+   participant Factory as IDbConnectionFactory
+   participant DB as PostgreSQL
 
-    Client->>Repo: AddAsync(entity)
-    Repo->>Factory: CreateConnection()
-    Factory-->>Repo: IDbConnection
-    Repo->>DB: OpenAsync()
-    Repo->>Mapper: MapToRow(entity)
-    Mapper-->>Repo: Dictionary<column, value>
-    Repo->>Schema: GetTableName<T>()
-    Schema-->>Repo: "users"
-    Repo->>Repo: build parameterized INSERT ... RETURNING id
-    Repo->>DB: ExecuteScalarAsync(sql, params)
-    DB-->>Repo: new id
-    Repo->>Client: entity.Id = newId
+   Client->>Repo: AddAsync(entity)
+   Repo->>Factory: CreateConnection()
+   Factory-->>Repo: IDbConnection
+   Repo->>DB: OpenAsync()
+   Repo->>Mapper: MapToRow(entity)
+   Mapper-->>Repo: Dictionary<column, value>
+   Repo->>Schema: GetTableName<T>()
+   Schema-->>Repo: "users"
+   Repo->>Repo: build parameterized INSERT ... RETURNING id
+   Repo->>DB: ExecuteScalarAsync(sql, params)
+   DB-->>Repo: new id
+   Repo->>Client: entity.Id = newId
 ```
 
 ---
@@ -432,38 +432,38 @@ Shows how a LINQ expression becomes safe, parameterized SQL — the most technic
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant QB as QueryBuilder<T>
-    participant Translator as ExpressionTranslator<T>
-    participant SqlGen as SqlGenerator
-    participant Factory as IDbConnectionFactory
-    participant DB as PostgreSQL
-    participant Mapper as EntityMapper<T>
+   participant Client
+   participant QB as QueryBuilder<T>
+   participant Translator as ExpressionTranslator<T>
+   participant SqlGen as SqlGenerator
+   participant Factory as IDbConnectionFactory
+   participant DB as PostgreSQL
+   participant Mapper as EntityMapper<T>
 
-    Client->>QB: Where(x => x.Age > 18)
-    Client->>QB: OrderByDescending(x => x.CreatedAt)
-    Client->>QB: Take(10)
-    Client->>QB: ExecuteAsync()
+   Client->>QB: Where(x => x.Age > 18)
+   Client->>QB: OrderByDescending(x => x.CreatedAt)
+   Client->>QB: Take(10)
+   Client->>QB: ExecuteAsync()
 
-    loop for each Where() condition
-        QB->>Translator: TranslateExpression(predicate, "p0")
-        Translator-->>QB: ("age > @p0", 18)
-    end
+   loop for each Where() condition
+      QB->>Translator: TranslateExpression(predicate, "p0")
+      Translator-->>QB: ("age > @p0", 18)
+   end
 
-    QB->>SqlGen: BuildSelectQuery(table, whereClauses, orderBy, dir, take, skip)
-    SqlGen-->>QB: "SELECT * FROM users WHERE age > @p0 ORDER BY created_at DESC LIMIT 10"
+   QB->>SqlGen: BuildSelectQuery(table, whereClauses, orderBy, dir, take, skip)
+   SqlGen-->>QB: "SELECT * FROM users WHERE age > @p0 ORDER BY created_at DESC LIMIT 10"
 
-    QB->>Factory: CreateConnection()
-    Factory-->>QB: IDbConnection
-    QB->>DB: OpenAsync() + ExecuteReaderAsync(sql, params)
-    DB-->>QB: rows
+   QB->>Factory: CreateConnection()
+   Factory-->>QB: IDbConnection
+   QB->>DB: OpenAsync() + ExecuteReaderAsync(sql, params)
+   DB-->>QB: rows
 
-    loop for each row
-        QB->>Mapper: MapToEntity(row)
-        Mapper-->>QB: T entity
-    end
+   loop for each row
+      QB->>Mapper: MapToEntity(row)
+      Mapper-->>QB: T entity
+   end
 
-    QB-->>Client: IEnumerable<T>
+   QB-->>Client: IEnumerable<T>
 ```
 
 ---
@@ -472,32 +472,32 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant UoW as UnitOfWork
-    participant Factory as IDbConnectionFactory
-    participant Repo1 as Repository<User>
-    participant Repo2 as Repository<Order>
-    participant DB as PostgreSQL
+   participant Client
+   participant UoW as UnitOfWork
+   participant Factory as IDbConnectionFactory
+   participant Repo1 as Repository<User>
+   participant Repo2 as Repository<Order>
+   participant DB as PostgreSQL
 
-    Client->>UoW: InitializeAsync()
-    UoW->>Factory: CreateConnection()
-    Factory-->>UoW: DbConnection (opened, shared)
+   Client->>UoW: InitializeAsync()
+   UoW->>Factory: CreateConnection()
+   Factory-->>UoW: DbConnection (opened, shared)
 
-    Client->>UoW: Transaction()
-    UoW->>DB: BeginTransactionAsync()
+   Client->>UoW: Transaction()
+   UoW->>DB: BeginTransactionAsync()
 
-    Client->>UoW: Repository<User>()
-    UoW->>Repo1: new Repository<User>(sharedConnection)
-    Client->>Repo1: AddAsync(user)
-    Repo1->>DB: INSERT INTO users ...
+   Client->>UoW: Repository<User>()
+   UoW->>Repo1: new Repository<User>(sharedConnection)
+   Client->>Repo1: AddAsync(user)
+   Repo1->>DB: INSERT INTO users ...
 
-    Client->>UoW: Repository<Order>()
-    UoW->>Repo2: new Repository<Order>(sharedConnection)
-    Client->>Repo2: AddAsync(order)
-    Repo2->>DB: INSERT INTO orders ...
+   Client->>UoW: Repository<Order>()
+   UoW->>Repo2: new Repository<Order>(sharedConnection)
+   Client->>Repo2: AddAsync(order)
+   Repo2->>DB: INSERT INTO orders ...
 
-    Client->>UoW: SaveChangesAsync()
-    UoW->>DB: CommitAsync()
+   Client->>UoW: SaveChangesAsync()
+   UoW->>DB: CommitAsync()
 ```
 
 ---
@@ -508,21 +508,21 @@ Derived from the `[ForeignKey]` metadata on `Order.UserId` referencing `User`.
 
 ```mermaid
 erDiagram
-    USERS ||--o{ ORDERS : places
-    USERS {
-        int id PK
-        string full_name
-        string email UK
-        timestamp created_at
-        timestamp updated_at
-    }
-    ORDERS {
-        int id PK
-        int user_id FK
-        numeric total
-        timestamp created_at
-        timestamp updated_at
-    }
+   USERS ||--o{ ORDERS : places
+   USERS {
+      int id PK
+      string full_name
+      string email UK
+      timestamp created_at
+      timestamp updated_at
+   }
+   ORDERS {
+      int id PK
+      int user_id FK
+      numeric total
+      timestamp created_at
+      timestamp updated_at
+   }
 ```
 
 ---
@@ -531,13 +531,13 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    A[MigrationRunner.RunAsync] --> B{Order migrations\nby Version}
-    B --> C["001_CreateUsersTable.UpAsync()"]
-    C --> D["SchemaBuilder.BuildCreateTableSql&lt;User&gt;()"]
-    D --> E[(PostgreSQL: CREATE TABLE users)]
-    B --> F["002_CreateOrdersTable.UpAsync()"]
-    F --> G["SchemaBuilder.BuildCreateTableSql&lt;Order&gt;()"]
-    G --> H[(PostgreSQL: CREATE TABLE orders,\nwith FK to users)]
+   A[MigrationRunner.RunAsync] --> B{Order migrations\nby Version}
+   B --> C["001_CreateUsersTable.UpAsync()"]
+   C --> D["SchemaBuilder.BuildCreateTableSql&lt;User&gt;()"]
+   D --> E[(PostgreSQL: CREATE TABLE users)]
+   B --> F["002_CreateOrdersTable.UpAsync()"]
+   F --> G["SchemaBuilder.BuildCreateTableSql&lt;Order&gt;()"]
+   G --> H[(PostgreSQL: CREATE TABLE orders,\nwith FK to users)]
 ```
 
 ---
@@ -558,13 +558,14 @@ flowchart LR
 
 ## 13. Known Limitations (as of this snapshot)
 
-- `ExpressionTranslator<T>` currently supports only a single top-level `BinaryExpression` (e.g. `x => x.Age > 18`) — compound predicates (`&&` / `||`), non-constant right-hand values (closures over local variables), and `.Contains()`/`LIKE`-style string matching are not yet handled.
 - `JoinType` is defined but not yet wired into `QueryBuilder<T>` / `SqlGenerator` — the groundwork for joins is laid but not yet consumed.
 - `Role.cs` in the Demo project is currently an empty placeholder entity.
 - No connection pooling/retry policy is implemented beyond what Npgsql provides by default.
-- Several nullable-reference-type warnings (`CS8618`, `CS8602`, `CS8604`) remain across `EntityMapper`, `ExpressionTranslator`, `QueryBuilder`, `UnitOfWork`, and `User` — non-breaking, but a natural next cleanup pass now that CI surfaces them on every run.
+- `ExpressionTranslator<T>` supports comparisons, `&&` / `||` / `!`, closures over local variables, and `.Contains()` / `StartsWith()` / `EndsWith()` (translated to `LIKE`), but does not yet support nested member access (`x.Address.City == "Amman"`) or arithmetic in predicates (`x.Price * x.Qty > 100`).
 
 These are natural, well-scoped next steps rather than design flaws — the seams needed to add them (`JoinType`, `IQueryBuilder<T>`) are already in place.
+
+> **Resolved since the initial snapshot:** `ExpressionTranslator<T>` now supports compound predicates (`&&`/`||`), closures over local variables, and `Contains`/`StartsWith`/`EndsWith` translated to `LIKE` (see §8). The nullable-reference-type warnings (`CS8618`, `CS8602`, `CS8604`) previously present in `EntityMapper`, `ExpressionTranslator`, `QueryBuilder`, `UnitOfWork`, and `User` have also been fixed — the project now builds warning-clean under `<Nullable>enable</Nullable>`. Every public and private member across the codebase now carries an XML `<summary>` documenting what it does and why (not just what it is), so `dotnet build` also emits an IntelliSense-ready XML documentation file alongside the assembly.
 
 ---
 

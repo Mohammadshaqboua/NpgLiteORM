@@ -5,6 +5,11 @@ using Xunit;
 
 namespace NpgLiteORM.Tests.Repositories;
 
+/// <summary>
+/// Integration tests for Repository&lt;User&gt; against a real PostgreSQL instance
+/// (see docker-compose.yml / CI's service container). Every test gets a clean,
+/// empty "users" table courtesy of <see cref="InitializeAsync"/>.
+/// </summary>
 public class RepositoryTests : IAsyncLifetime
 {
     private const string ConnectionString =
@@ -13,6 +18,11 @@ public class RepositoryTests : IAsyncLifetime
     private PostgresConnectionFactory _connectionFactory = null!;
     private Repository<User> _repository = null!;
 
+    /// <summary>
+    /// Runs before every test: creates the "users" table if it doesn't exist yet
+    /// (so the suite works on a brand-new database, not just one that already ran
+    /// migrations) and truncates it, guaranteeing each test starts from zero rows.
+    /// </summary>
     public async Task InitializeAsync()
     {
         _connectionFactory = new PostgresConnectionFactory(ConnectionString);
@@ -39,8 +49,10 @@ public class RepositoryTests : IAsyncLifetime
         await Task.CompletedTask;
     }
 
+    /// <summary>No per-test teardown needed — the next test's InitializeAsync truncates the table again.</summary>
     public Task DisposeAsync() => Task.CompletedTask;
 
+    /// <summary>AddAsync should populate the entity's auto-generated Id (from the SERIAL column) after inserting.</summary>
     [Fact]
     public async Task AddAsync_ShouldAssignGeneratedId()
     {
@@ -54,6 +66,7 @@ public class RepositoryTests : IAsyncLifetime
         Assert.True(user.Id > 0);
     }
 
+    /// <summary>GetByIdAsync should return the exact row just inserted, matched by its generated Id.</summary>
     [Fact]
     public async Task GetByIdAsync_ShouldReturnCorrectUser()
     {
@@ -69,6 +82,7 @@ public class RepositoryTests : IAsyncLifetime
         Assert.Equal("sara@test.com", result.Email);
     }
 
+    /// <summary>GetAllAsync should return every row inserted since the table was truncated for this test.</summary>
     [Fact]
     public async Task GetAllAsync_ShouldReturnAllInsertedUsers()
     {
@@ -83,6 +97,7 @@ public class RepositoryTests : IAsyncLifetime
         Assert.Equal(2, results.Count());
     }
 
+    /// <summary>UpdateAsync should persist a changed property value, verified by re-fetching the row afterwards.</summary>
     [Fact]
     public async Task UpdateAsync_ShouldModifyExistingUser()
     {
@@ -99,6 +114,7 @@ public class RepositoryTests : IAsyncLifetime
         Assert.Equal("Zaid Updated", updated.Name);
     }
 
+    /// <summary>DeleteAsync should remove the row so a subsequent GetByIdAsync for the same Id throws EntityNotFoundException.</summary>
     [Fact]
     public async Task DeleteAsync_ShouldRemoveUser()
     {

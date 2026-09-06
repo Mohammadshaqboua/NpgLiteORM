@@ -4,8 +4,10 @@ using Xunit;
 
 namespace NpgLiteORM.Tests.Mapping;
 
+/// <summary>Covers EntityMapper's two directions: object → row (MapToRow) and row → object (MapToEntity).</summary>
 public class EntityMapperTests
 {
+    /// <summary>MapToRow should key the resulting dictionary by SQL column name (e.g. "full_name"), not the C# property name ("Name").</summary>
     [Fact]
     public void MapToRow_ShouldReturnCorrectColumnNamesAndValues()
     {
@@ -17,7 +19,8 @@ public class EntityMapperTests
         Assert.Equal("Ahmad", row["full_name"]);
         Assert.Equal("ahmad@test.com", row["email"]);
     }
-    
+
+    /// <summary>MapToEntity should read every mapped column off a fake row (case-insensitively, via FakeDataRecord) and populate the resulting entity's properties.</summary>
     [Fact]
     public void MapToEntity_ShouldBuildUserFromFakeRow()
     {

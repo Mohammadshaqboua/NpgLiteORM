@@ -4,8 +4,10 @@ using Xunit;
 
 namespace NpgLiteORM.Tests.Mapping;
 
+/// <summary>Covers SchemaBuilder's CREATE TABLE generation: table naming, constraints, column renaming, and foreign keys.</summary>
 public class SchemaBuilderTests
 {
+    /// <summary>The generated DDL should target the [Table]-supplied name ("users"), not the C# class name ("User").</summary>
     [Fact]
     public void BuildCreateTableSql_ShouldContainTableName()
     {
@@ -14,6 +16,7 @@ public class SchemaBuilderTests
         Assert.Contains("CREATE TABLE IF NOT EXISTS users", sql);
     }
 
+    /// <summary>The [PrimaryKey]-attributed Id column should get a "PRIMARY KEY" constraint in the generated DDL.</summary>
     [Fact]
     public void BuildCreateTableSql_ShouldMarkIdAsPrimaryKey()
     {
@@ -22,6 +25,7 @@ public class SchemaBuilderTests
         Assert.Contains("PRIMARY KEY", sql);
     }
 
+    /// <summary>A [Column("full_name")]-attributed property should appear under its SQL name, not its C# property name ("Name").</summary>
     [Fact]
     public void BuildCreateTableSql_ShouldUseColumnAttributeName()
     {
@@ -30,6 +34,7 @@ public class SchemaBuilderTests
         Assert.Contains("full_name", sql);
     }
 
+    /// <summary>Order.UserId's [ForeignKey(typeof(User))] should produce a "REFERENCES users(id)" constraint in Order's generated DDL.</summary>
     [Fact]
     public void BuildCreateTableSql_ShouldGenerateForeignKeyConstraint()
     {

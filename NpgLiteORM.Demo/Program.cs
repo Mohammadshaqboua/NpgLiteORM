@@ -1,4 +1,7 @@
-﻿using System.Data.Common;
+﻿// Demo entry point: opens a connection to the local PostgreSQL instance (see
+// docker-compose.yml) and runs every migration in order, bringing a fresh
+// database up to the current schema (users, then orders).
+using System.Data.Common;
 using NpgLiteORM.Core.Data;
 using NpgLiteORM.Core.Migrations;
 using NpgLiteORM.Core.Migrations.Migrations;
