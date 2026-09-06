@@ -1,9 +1,9 @@
 # NpgLiteORM — Architecture & Design Documentation
 
-![Tests](https://github.com/Mohammadshaqboua/NpgLiteORM/actions/workflows/tests.yml/badge.svg)
-
 > A lightweight, educational **Object-Relational Mapper (ORM)** for PostgreSQL, built in C# / .NET 10 on top of Npgsql.
 > This document provides an in-depth technical walkthrough of the codebase: its architecture, design patterns, class relationships, and the object-oriented principles it demonstrates.
+
+![Tests](https://github.com/Mohammadshaqboua/NpgLiteORM/actions/workflows/tests.yml/badge.svg)
 
 ---
 
@@ -50,6 +50,7 @@ public class User : EntityBase
 
 ---
 
+
 ## 1. Executive Summary
 
 **NpgLiteORM** is a hand-rolled micro-ORM that lets developers map plain C# classes to PostgreSQL tables using attributes (`[Table]`, `[Column]`, `[PrimaryKey]`, `[ForeignKey]`, etc.) and interact with the database through strongly-typed repositories and a fluent, LINQ-style query builder — instead of writing raw SQL by hand.
@@ -80,7 +81,8 @@ The result reads like a **miniature, correctly-layered version of Entity Framewo
 - **.NET 10** / **C# 12**
 - **PostgreSQL**, accessed through **Npgsql**
 - **Docker Compose** for local database provisioning
-- Layered solution: `NpgLiteORM.Core` (library), `NpgLiteORM.Demo` (console showcase), `NpgLiteORM.Tests` (unit tests for mapping, schema, expression translation, repositories)
+- **GitHub Actions** for continuous integration (see §15)
+- Layered solution: `NpgLiteORM.Core` (library), `NpgLiteORM.Demo` (console showcase), `NpgLiteORM.Tests` (unit + integration tests for mapping, schema, expression translation, and repositories)
 
 ---
 
@@ -111,6 +113,11 @@ NpgLiteORM.Tests/
 ├── Mapping/               EntityMapperTests, SchemaBuilderTests, FakeDataRecord
 ├── Query/                 ExpressionTranslatorTests
 └── Repositories/          RepositoryTests
+
+.github/workflows/
+└── tests.yml             GitHub Actions CI: builds and runs the full test suite
+                           against a fresh, disposable PostgreSQL service container
+                           on every push and pull request to main
 ```
 
 The layering is a clean **onion / clean-architecture shape**: `Attributes` and `Abstract` sit at the core with zero outward dependencies; `Mapping` and `Query` build on top of them via reflection; `Repositories` and `Migrations` orchestrate everything for the consumer; `Demo` and `Tests` depend on `Core` but never the reverse.
@@ -132,6 +139,7 @@ The layering is a clean **onion / clean-architecture shape**: `Attributes` and `
    - **`SqlGenerator`** assembles the final `SELECT` statement (`WHERE`, `ORDER BY`, `LIMIT`, `OFFSET`) from those fragments — a clean separation between *"what to filter"* (translation) and *"how to write SQL"* (generation).
 7. **`UnitOfWork`** (implements `IUnitOfWork`) opens one shared `DbConnection`, lazily creates/caches a `Repository<T>` per entity type via reflection (`Repository<>.MakeGenericType`), and coordinates `BeginTransaction` / `Commit` / `Rollback` across all of them — the classic Unit-of-Work pattern used by EF Core's `DbContext.SaveChanges()`.
 8. **Domain-specific exceptions** (`EntityNotFoundException`, `ConnectionException`, `SchemaValidationException`) replace generic exceptions with typed, information-rich failures (e.g. `EntityNotFoundException` carries the entity `Type` and the missing `Id`; `SchemaValidationException` carries the entity `Type` and the offending property name).
+9. **Every push to `main`** triggers **GitHub Actions** (§15), which spins up a disposable PostgreSQL container, restores, builds, and runs the entire test suite — including the integration tests against a real database — with zero manual steps.
 
 ---
 
@@ -546,6 +554,7 @@ flowchart LR
 - **Typed, informative exceptions** over generic `Exception`/`InvalidOperationException` misuse — `EntityNotFoundException` and `ConnectionException` carry structured diagnostic data instead of just a message string.
 - **Test coverage targets the hard parts.** Tests focus on `EntityMapper`, `SchemaBuilder`, and `ExpressionTranslator` — precisely the reflection- and expression-tree-heavy code that is easiest to get subtly wrong, showing an accurate sense of where the real risk lives.
 - **Willingness to remove code, not just add it.** An earlier `ComparisonOperator` enum was deliberately removed once it became clear it duplicated .NET's own `ExpressionType` with no added value — a small but telling sign of engineering judgment over sunk-cost attachment to code already written.
+- **Tests that assume nothing about environment state.** `RepositoryTests.InitializeAsync()` creates the schema itself (`SchemaBuilder.BuildCreateTableSql<User>()`) before truncating, rather than assuming a table already exists — a gap only surfaced by running the suite in a genuinely fresh environment (CI), which is exactly what continuous integration is for.
 
 ## 13. Known Limitations (as of this snapshot)
 
@@ -553,6 +562,7 @@ flowchart LR
 - `JoinType` is defined but not yet wired into `QueryBuilder<T>` / `SqlGenerator` — the groundwork for joins is laid but not yet consumed.
 - `Role.cs` in the Demo project is currently an empty placeholder entity.
 - No connection pooling/retry policy is implemented beyond what Npgsql provides by default.
+- Several nullable-reference-type warnings (`CS8618`, `CS8602`, `CS8604`) remain across `EntityMapper`, `ExpressionTranslator`, `QueryBuilder`, `UnitOfWork`, and `User` — non-breaking, but a natural next cleanup pass now that CI surfaces them on every run.
 
 These are natural, well-scoped next steps rather than design flaws — the seams needed to add them (`JoinType`, `IQueryBuilder<T>`) are already in place.
 
@@ -561,3 +571,15 @@ These are natural, well-scoped next steps rather than design flaws — the seams
 ## 14. License
 
 MIT License — see `LICENSE`.
+
+---
+
+## 15. Continuous Integration
+
+A GitHub Actions workflow (`.github/workflows/tests.yml`) runs on every push and pull request to `main`:
+
+1. Spins up a disposable **PostgreSQL 16** service container (mirroring the local Docker Compose setup).
+2. Restores, builds, and runs the full `NpgLiteORM.Tests` suite — unit tests **and** integration tests — against that fresh database.
+3. Reports pass/fail status directly on GitHub, surfaced via the badge at the top of this document.
+
+This closed a real gap during development: the integration tests initially assumed the `users` table already existed (true on a developer machine that had run migrations before, false on a brand-new CI database), which CI caught immediately on its first run. `RepositoryTests.InitializeAsync()` now creates the schema itself before each test run, making the suite environment-independent.
